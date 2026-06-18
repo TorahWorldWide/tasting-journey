@@ -1,122 +1,586 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import {
+  uid, STORAGE_KEY, DEFAULT_STATE, fmt, storeOpen, wazeUrl, mapsUrl, DAY_NAMES,
+} from './data.js'
 import './App.css'
 
-function App() {
-  const [count, setCount] = useState(0)
+/* ---------- Google Fonts injection ---------- */
+function useFonts() {
+  useEffect(() => {
+    if (document.getElementById('tj-fonts')) return
+    const l = document.createElement('link')
+    l.id = 'tj-fonts'
+    l.rel = 'stylesheet'
+    l.href =
+      'https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700;900&family=Heebo:wght@300;400;500;700&display=swap'
+    document.head.appendChild(l)
+  }, [])
+}
+
+/* ---------- IndexedDB photo store ---------- */
+const DB_NAME = 'tasting-journey-photos'
+const DB_STORE = 'photos'
+function openDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, 1)
+    r.onupgradeneeded = () => r.result.createObjectStore(DB_STORE)
+    r.onsuccess = () => res(r.result)
+    r.onerror = () => rej(r.error)
+  })
+}
+async function idbPutPhoto(id, dataUrl) {
+  try { const db = await openDB(); return await new Promise((res, rej) => {
+    const tx = db.transaction(DB_STORE, 'readwrite'); tx.objectStore(DB_STORE).put(dataUrl, id)
+    tx.oncomplete = () => res(true); tx.onerror = () => rej(tx.error) }) } catch { return false }
+}
+async function idbGetPhoto(id) {
+  try { const db = await openDB(); return await new Promise((res) => {
+    const tx = db.transaction(DB_STORE, 'readonly'); const g = tx.objectStore(DB_STORE).get(id)
+    g.onsuccess = () => res(g.result || null); g.onerror = () => res(null) }) } catch { return null }
+}
+async function idbDelPhoto(id) {
+  try { const db = await openDB(); return await new Promise((res) => {
+    const tx = db.transaction(DB_STORE, 'readwrite'); tx.objectStore(DB_STORE).delete(id)
+    tx.oncomplete = () => res(true); tx.onerror = () => res(false) }) } catch { return false }
+}
+async function idbClear() {
+  try { const db = await openDB(); return await new Promise((res) => {
+    const tx = db.transaction(DB_STORE, 'readwrite'); tx.objectStore(DB_STORE).clear()
+    tx.oncomplete = () => res(true); tx.onerror = () => res(false) }) } catch { return false }
+}
+
+/* ---------- image downscale ---------- */
+function fileToScaledDataUrl(file, max = 1000, q = 0.8) {
+  return new Promise((res, rej) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      let { width: w, height: h } = img
+      if (w > h && w > max) { h = Math.round((h * max) / w); w = max }
+      else if (h >= w && h > max) { w = Math.round((w * max) / h); h = max }
+      const c = document.createElement('canvas'); c.width = w; c.height = h
+      c.getContext('2d').drawImage(img, 0, 0, w, h)
+      URL.revokeObjectURL(url)
+      try { res(c.toDataURL('image/jpeg', q)) } catch (e) { rej(e) }
+    }
+    img.onerror = (e) => { URL.revokeObjectURL(url); rej(e) }
+    img.src = url
+  })
+}
+
+const TYPE_LABEL = { animal: 'חלב מן החי', plant: 'משקאות צמחיים', other: 'נוסף' }
+const TYPE_ORDER = ['animal', 'plant', 'other']
+const VERDICT = {
+  daily: { label: 'נכנס ליומיום', cls: 'v-daily' },
+  maybe: { label: 'אולי', cls: 'v-maybe' },
+  pass: { label: 'לא בשבילי', cls: 'v-pass' },
+}
+
+/* ===================================================================== */
+export default function App() {
+  useFonts()
+  const [state, setState] = useState(DEFAULT_STATE)
+  const [loaded, setLoaded] = useState(false)
+  const [tab, setTab] = useState('catalog')
+  const [photoCache, setPhotoCache] = useState({}) // itemId -> dataUrl
+  const [viewerIdx, setViewerIdx] = useState(null)
+  const [modal, setModal] = useState(null) // 'addItem' | 'addCat' | 'addStore'
+
+  /* load */
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (raw) setState({ ...DEFAULT_STATE, ...JSON.parse(raw) })
+    } catch { /* keep default */ }
+    setLoaded(true)
+  }, [])
+
+  /* save */
+  useEffect(() => {
+    if (!loaded) return
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)) } catch { /* quota */ }
+  }, [state, loaded])
+
+  const activeCategory = state.categories.find((c) => c.id === state.activeCat) || state.categories[0]
+  const items = activeCategory ? activeCategory.items : []
+
+  /* ----- mutators ----- */
+  const updateItem = useCallback((itemId, patch) => {
+    setState((s) => ({
+      ...s,
+      categories: s.categories.map((c) =>
+        c.id !== s.activeCat ? c : { ...c, items: c.items.map((it) => (it.id === itemId ? { ...it, ...patch } : it)) }),
+    }))
+  }, [])
+
+  const addItem = (raw) => {
+    const it = { id: uid(), name: raw.name, type: raw.type, desc: raw.desc || '', where: raw.where || '',
+      status: 'todo', score: 0, verdict: '', bought: false, image: raw.image || '', imageSource: raw.imageSource || '', barcode: raw.barcode || '' }
+    setState((s) => ({ ...s, categories: s.categories.map((c) => c.id !== s.activeCat ? c : { ...c, items: [...c.items, it] }) }))
+  }
+  const deleteItem = async (itemId) => {
+    await idbDelPhoto(itemId)
+    setState((s) => ({ ...s, categories: s.categories.map((c) => c.id !== s.activeCat ? c : { ...c, items: c.items.filter((it) => it.id !== itemId) }) }))
+  }
+  const addCategory = (name, emoji) => {
+    const id = uid()
+    setState((s) => ({ ...s, categories: [...s.categories, { id, name, emoji: emoji || '🍽️', items: [] }], activeCat: id }))
+  }
+  const addStore = (name, addr, hoursText) =>
+    setState((s) => ({ ...s, stores: [...s.stores, { id: uid(), name, addr, note: '', hoursText: hoursText || '', hours: null, delivery: false, deliveryUrl: '' }] }))
+  const deleteStore = (sid) => setState((s) => ({ ...s, stores: s.stores.filter((x) => x.id !== sid) }))
+
+  const setCustom = (fn) => setState((s) => {
+    const list = s.customList[s.activeCat] || []
+    return { ...s, customList: { ...s.customList, [s.activeCat]: fn(list) } }
+  })
+
+  const resetAll = async () => {
+    if (!confirm('לאפס הכול לברירת המחדל? כל הדירוגים, התמונות והרשימות יימחקו.')) return
+    await idbClear()
+    setPhotoCache({})
+    setState(DEFAULT_STATE)
+    setTab('catalog')
+  }
+
+  /* ----- photo handling ----- */
+  const setItemPhotoFromFile = async (itemId, file) => {
+    try {
+      const dataUrl = await fileToScaledDataUrl(file)
+      await idbPutPhoto(itemId, dataUrl)
+      setPhotoCache((m) => ({ ...m, [itemId]: dataUrl }))
+      updateItem(itemId, { image: 'idb', imageSource: 'user' })
+    } catch { alert('לא הצלחתי לטעון את התמונה.') }
+  }
+  const setItemPhotoByBarcode = async (itemId, barcode) => {
+    const code = (barcode || '').replace(/\D/g, '')
+    if (!code) return
+    try {
+      const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,brands,image_front_url`)
+      const j = await r.json()
+      const url = j?.product?.image_front_url
+      if (url) updateItem(itemId, { image: url, imageSource: 'off', barcode: code })
+      else alert('לא נמצא מוצר עם הברקוד הזה — נסה לצלם.')
+    } catch { alert('שגיאת רשת בחיפוש הברקוד — נסה לצלם.') }
+  }
+  const setItemPhotoByUrl = (itemId, url) => {
+    if (url && /^https?:\/\//.test(url)) updateItem(itemId, { image: url, imageSource: 'url' })
+  }
+  const removeItemPhoto = async (item) => {
+    if (item.imageSource === 'user') { await idbDelPhoto(item.id); setPhotoCache((m) => { const n = { ...m }; delete n[item.id]; return n }) }
+    updateItem(item.id, { image: '', imageSource: '', barcode: '' })
+  }
+
+  /* lazy-load idb photos for visible items */
+  useEffect(() => {
+    if (!loaded) return
+    items.forEach((it) => {
+      if (it.image === 'idb' && photoCache[it.id] === undefined) {
+        idbGetPhoto(it.id).then((d) => { if (d) setPhotoCache((m) => ({ ...m, [it.id]: d })) })
+      }
+    })
+  }, [items, loaded, photoCache])
+
+  const imgSrc = (it) => (it.image === 'idb' ? photoCache[it.id] || '' : it.image || '')
+
+  /* badges */
+  const badge = {
+    catalog: items.filter((i) => i.status === 'todo').length,
+    list: items.filter((i) => i.status === 'list').length,
+    daily: items.filter((i) => i.verdict === 'daily').length,
+  }
+
+  if (!loaded) return <div className="boot">טוען…</div>
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="app" dir="rtl">
+      <Header
+        state={state} setState={setState} onReset={resetAll}
+        onAddCat={() => setModal('addCat')}
+      />
 
-      <div className="ticks"></div>
+      <main className="content" key={tab}>
+        {tab === 'catalog' && (
+          <Catalog items={items} updateItem={updateItem} deleteItem={deleteItem}
+            imgSrc={imgSrc} setItemPhotoFromFile={setItemPhotoFromFile}
+            setItemPhotoByBarcode={setItemPhotoByBarcode} setItemPhotoByUrl={setItemPhotoByUrl}
+            removeItemPhoto={removeItemPhoto} openViewer={(id) => setViewerIdx(items.findIndex((x) => x.id === id))}
+            onAddItem={() => setModal('addItem')} />
+        )}
+        {tab === 'list' && (
+          <ShoppingList items={items} stores={state.stores} imgSrc={imgSrc}
+            updateItem={updateItem} custom={state.customList[state.activeCat] || []} setCustom={setCustom} />
+        )}
+        {tab === 'stores' && (
+          <Stores stores={state.stores} onAddStore={() => setModal('addStore')} deleteStore={deleteStore} />
+        )}
+        {tab === 'daily' && <Daily items={items} imgSrc={imgSrc} />}
+      </main>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      <nav className="tabbar">
+        {[['catalog', 'קטלוג', '🥛'], ['list', 'רשימה', '📝'], ['stores', 'חנויות', '🏪'], ['daily', 'היומיום', '⭐']].map(([k, label, ic]) => (
+          <button key={k} className={`tabbtn${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>
+            <span className="tabic">{ic}</span>
+            <span className="tablbl">{label}</span>
+            {badge[k] > 0 && <span className="tabbadge">{badge[k]}</span>}
+          </button>
+        ))}
+      </nav>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {viewerIdx !== null && items[viewerIdx] && (
+        <Viewer items={items} idx={viewerIdx} setIdx={setViewerIdx} imgSrc={imgSrc} updateItem={updateItem} />
+      )}
+
+      {modal === 'addItem' && <AddItemModal onClose={() => setModal(null)} onAdd={addItem} />}
+      {modal === 'addCat' && <AddCatModal onClose={() => setModal(null)} onAdd={addCategory} />}
+      {modal === 'addStore' && <AddStoreModal onClose={() => setModal(null)} onAdd={addStore} />}
+    </div>
   )
 }
 
-export default App
+/* ===================== Header ===================== */
+function Header({ state, setState, onReset, onAddCat }) {
+  return (
+    <header className="header">
+      <div className="hrow">
+        <div className="logo"><span className="logodrop">💧</span>מסעטעימות</div>
+        <button className="resetbtn" title="איפוס" onClick={onReset}>⟳</button>
+      </div>
+      <div className="chiprow">
+        {state.categories.map((c) => (
+          <button key={c.id} className={`chip${state.activeCat === c.id ? ' active' : ''}`}
+            onClick={() => setState((s) => ({ ...s, activeCat: c.id }))}>
+            <span>{c.emoji}</span> {c.name}
+          </button>
+        ))}
+        <button className="chip chipadd" onClick={onAddCat}>+ תחום</button>
+      </div>
+    </header>
+  )
+}
+
+/* ===================== Image controls ===================== */
+function ImageControls({ item, src, onFile, onBarcode, onUrl, onRemove, onTap }) {
+  const fileRef = useRef(null)
+  const [bc, setBc] = useState(false)
+  const [bcVal, setBcVal] = useState('')
+  return (
+    <div className="imgwrap">
+      {src ? (
+        <div className="imgbox" onClick={onTap} role="button" title="הצג / הראה למוכר">
+          <img className="prodimg" src={src} alt={item.name} loading="lazy" />
+          {item.imageSource === 'off' && <span className="offattr">מקור: Open Food Facts</span>}
+          {item.bought && <span className="boughttag">✓ קניתי</span>}
+        </div>
+      ) : (
+        <div className="imgempty"><span>💧</span><small>אין תמונה</small></div>
+      )}
+      <div className="imgbtns">
+        <button className="imbtn" onClick={() => fileRef.current?.click()}>📷 צלם / העלה</button>
+        <button className="imbtn" onClick={() => setBc((v) => !v)}>🔎 ברקוד</button>
+        <button className="imbtn" onClick={() => { const u = prompt('הדבק קישור לתמונה (https):'); if (u) onUrl(u) }}>🔗 קישור</button>
+        {src && <button className="imbtn imdel" onClick={onRemove}>הסר</button>}
+      </div>
+      {bc && (
+        <div className="bcrow">
+          <input inputMode="numeric" placeholder="מספר ברקוד" value={bcVal} onChange={(e) => setBcVal(e.target.value)} />
+          <button onClick={() => { onBarcode(bcVal); setBc(false); setBcVal('') }}>חפש</button>
+        </div>
+      )}
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = '' }} />
+    </div>
+  )
+}
+
+/* ===================== Rate box ===================== */
+function RateBox({ item, onSave, onCancel }) {
+  const [score, setScore] = useState(item.score || 0)
+  const [verdict, setVerdict] = useState(item.verdict || '')
+  return (
+    <div className="ratebox">
+      <div className="drops">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} className={`drop${n <= score ? ' on' : ''}`} onClick={() => setScore(n)}>💧</button>
+        ))}
+      </div>
+      <div className="verdicts">
+        {Object.entries(VERDICT).map(([k, v]) => (
+          <button key={k} className={`vchip ${v.cls}${verdict === k ? ' sel' : ''}`} onClick={() => setVerdict(k)}>{v.label}</button>
+        ))}
+      </div>
+      <div className="ratebtns">
+        <button className="savebtn" disabled={!score || !verdict}
+          onClick={() => onSave({ score, verdict, status: 'tasted' })}>שמור</button>
+        <button className="ghostbtn" onClick={onCancel}>ביטול</button>
+      </div>
+    </div>
+  )
+}
+
+/* ===================== Catalog ===================== */
+function Catalog({ items, updateItem, deleteItem, imgSrc, setItemPhotoFromFile, setItemPhotoByBarcode, setItemPhotoByUrl, removeItemPhoto, openViewer, onAddItem }) {
+  const [rating, setRating] = useState(null)
+  if (!items.length)
+    return <div className="empty">אין עדיין מוצרים בתחום הזה.<br />הוסף את הראשון 👇
+      <div style={{ marginTop: 16 }}><button className="bigadd" onClick={onAddItem}>+ הוסף מוצר משלך</button></div></div>
+  return (
+    <div className="catalog">
+      {TYPE_ORDER.map((t) => {
+        const group = items.filter((i) => i.type === t)
+        if (!group.length) return null
+        return (
+          <section key={t} className="grp">
+            <h2 className="grph">{TYPE_LABEL[t]}</h2>
+            {group.map((it, gi) => (
+              <article key={it.id} className="card" style={{ animationDelay: `${gi * 40}ms` }}>
+                <button className="cardx" onClick={() => confirm(`למחוק את "${it.name}"?`) && deleteItem(it.id)}>×</button>
+                <ImageControls item={it} src={imgSrc(it)}
+                  onFile={(f) => setItemPhotoFromFile(it.id, f)}
+                  onBarcode={(b) => setItemPhotoByBarcode(it.id, b)}
+                  onUrl={(u) => setItemPhotoByUrl(it.id, u)}
+                  onRemove={() => removeItemPhoto(it)}
+                  onTap={() => openViewer(it.id)} />
+                <div className="cardname">{it.name}</div>
+                {it.desc && <div className="carddesc">{it.desc}</div>}
+                {it.where && <div className="cardwhere">📍 {it.where}</div>}
+
+                {it.status === 'todo' && (
+                  <button className="actbtn" onClick={() => updateItem(it.id, { status: 'list' })}>+ לרשימת קניות</button>
+                )}
+                {it.status === 'list' && (
+                  <div className="liststate">
+                    <span className="listpill">● ברשימת הקניות</span>
+                    <button className="actbtn small" onClick={() => setRating(it.id)}>טעמתי →</button>
+                  </div>
+                )}
+                {it.status === 'tasted' && rating !== it.id && (
+                  <div className="tastedstate">
+                    <div className="drops sm">{[1, 2, 3, 4, 5].map((n) => <span key={n} className={`drop${n <= it.score ? ' on' : ''}`}>💧</span>)}</div>
+                    {it.verdict && <span className={`vbadge ${VERDICT[it.verdict].cls}`}>{VERDICT[it.verdict].label}</span>}
+                    <div className="rowbtns">
+                      <button className="ghostbtn xs" onClick={() => setRating(it.id)}>ערוך דירוג</button>
+                      <button className="ghostbtn xs" onClick={() => updateItem(it.id, { status: 'todo', score: 0, verdict: '' })}>איפוס</button>
+                    </div>
+                  </div>
+                )}
+                {rating === it.id && (
+                  <RateBox item={it} onCancel={() => setRating(null)}
+                    onSave={(patch) => { updateItem(it.id, patch); setRating(null) }} />
+                )}
+              </article>
+            ))}
+          </section>
+        )
+      })}
+      <button className="bigadd" onClick={onAddItem}>+ הוסף מוצר משלך</button>
+    </div>
+  )
+}
+
+/* ===================== Shopping list ===================== */
+function ShoppingList({ items, stores, imgSrc, updateItem, custom, setCustom }) {
+  const toBuy = items.filter((i) => i.status === 'list')
+  // group by store via where-substring match
+  const groups = {}
+  toBuy.forEach((it) => {
+    const st = stores.find((s) => it.where && s.name && it.where.includes(s.name.split(' ')[0]))
+    const key = st ? st.name : 'כל סופר / אחר'
+    ;(groups[key] = groups[key] || { store: st, items: [] }).items.push(it)
+  })
+  const [name, setName] = useState(''); const [note, setNote] = useState('')
+  return (
+    <div className="list">
+      <h2 className="grph">לטעימה</h2>
+      {!toBuy.length && <div className="empty sm">הרשימה ריקה — סמן מוצרים "+ לרשימת קניות" בקטלוג.</div>}
+      {Object.entries(groups).map(([gname, g]) => (
+        <section key={gname} className="storegrp">
+          <div className="storegrph">
+            <span>{gname}</span>
+            {g.store?.delivery && <a className="delivlink" href={g.store.deliveryUrl} target="_blank" rel="noreferrer">🚚 הזמן משלוח</a>}
+          </div>
+          {g.items.map((it) => (
+            <label key={it.id} className="lrow">
+              <input type="checkbox" onChange={() => updateItem(it.id, { status: 'tasted', bought: true })} />
+              {imgSrc(it) ? <img className="lthumb" src={imgSrc(it)} alt="" /> : <span className="lthumb empty">💧</span>}
+              <span className="lname">{it.name}</span>
+            </label>
+          ))}
+        </section>
+      ))}
+
+      <h2 className="grph" style={{ marginTop: 22 }}>תוספות שלי</h2>
+      {custom.map((c) => (
+        <div key={c.id} className="lrow">
+          <input type="checkbox" checked={c.done} onChange={() => setCustom((l) => l.map((x) => x.id === c.id ? { ...x, done: !x.done } : x))} />
+          <span className={`lname${c.done ? ' done' : ''}`}>{c.name}{c.note ? ` — ${c.note}` : ''}</span>
+          <button className="cardx static" onClick={() => setCustom((l) => l.filter((x) => x.id !== c.id))}>×</button>
+        </div>
+      ))}
+      <div className="addrow">
+        <input placeholder="פריט" value={name} onChange={(e) => setName(e.target.value)} />
+        <input placeholder="הערה (לא חובה)" value={note} onChange={(e) => setNote(e.target.value)} />
+        <button disabled={!name.trim()} onClick={() => { setCustom((l) => [...l, { id: uid(), name: name.trim(), note: note.trim(), done: false }]); setName(''); setNote('') }}>הוסף</button>
+      </div>
+    </div>
+  )
+}
+
+/* ===================== Stores ===================== */
+function Stores({ stores, onAddStore, deleteStore }) {
+  const sorted = [...stores].sort((a, b) => {
+    const rank = (s) => { const o = storeOpen(s); return o === true ? 0 : o === null ? 1 : 2 }
+    return rank(a) - rank(b)
+  })
+  const today = new Date().getDay()
+  return (
+    <div className="stores">
+      {sorted.map((s) => <StoreCard key={s.id} s={s} today={today} onDelete={() => confirm(`למחוק את "${s.name}"?`) && deleteStore(s.id)} />)}
+      <button className="bigadd" onClick={onAddStore}>+ הוסף חנות</button>
+    </div>
+  )
+}
+function StoreCard({ s, today, onDelete }) {
+  const [open, setOpen] = useState(false)
+  const status = storeOpen(s)
+  const th = s.hours?.[today]
+  return (
+    <article className="storecard">
+      <button className="cardx" onClick={onDelete}>×</button>
+      <div className="storetop">
+        <h3>{s.name}</h3>
+        {status === true && <span className="pill open">פתוח עכשיו</span>}
+        {status === false && <span className="pill closed">סגור</span>}
+      </div>
+      <div className="storeaddr">📍 {s.addr}</div>
+      {s.note && <div className="storenote">{s.note}</div>}
+      {s.hours ? (
+        <div className="hoursline">היום: {th ? `${fmt(th.o)}–${fmt(th.c)}` : 'סגור'}
+          <button className="linkbtn" onClick={() => setOpen((v) => !v)}>{open ? 'הסתר שעות' : 'כל השעות'}</button></div>
+      ) : s.hoursText ? <div className="hoursline">{s.hoursText}</div> : null}
+      {open && s.hours && (
+        <ul className="weekhours">
+          {s.hours.map((h, i) => (
+            <li key={i} className={i === today ? 'todayh' : ''}>
+              <span>{DAY_NAMES[i]}</span><span>{h ? `${fmt(h.o)}–${fmt(h.c)}` : 'סגור'}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="storebtns">
+        <a className="navbtn waze" href={wazeUrl(s)} target="_blank" rel="noreferrer">Waze</a>
+        <a className="navbtn maps" href={mapsUrl(s)} target="_blank" rel="noreferrer">Google Maps</a>
+        {s.delivery && <a className="navbtn deliv" href={s.deliveryUrl} target="_blank" rel="noreferrer">🚚 משלוח</a>}
+      </div>
+    </article>
+  )
+}
+
+/* ===================== Daily ===================== */
+function Daily({ items, imgSrc }) {
+  const daily = items.filter((i) => i.verdict === 'daily')
+  if (!daily.length) return <div className="empty">עדיין לא בחרת מוצרים ליומיום — דרג ובחר "נכנס ליומיום".</div>
+  return (
+    <div className="daily">
+      <h2 className="grph">המוצרים שנכנסו ליומיום</h2>
+      {daily.map((it) => (
+        <div key={it.id} className="drow">
+          {imgSrc(it) ? <img className="lthumb" src={imgSrc(it)} alt="" /> : <span className="lthumb empty">💧</span>}
+          <span className="lname">{it.name}</span>
+          <span className="drops sm">{[1, 2, 3, 4, 5].map((n) => <span key={n} className={`drop${n <= it.score ? ' on' : ''}`}>💧</span>)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/* ===================== Viewer (swipeable) ===================== */
+function Viewer({ items, idx, setIdx, imgSrc, updateItem }) {
+  const it = items[idx]
+  const [pop, setPop] = useState(false)
+  const tx = useRef(0)
+  const go = (d) => { const n = idx + d; if (n >= 0 && n < items.length) setIdx(n) }
+  const onStart = (e) => { tx.current = e.touches[0].clientX }
+  const onEnd = (e) => {
+    const dx = e.changedTouches[0].clientX - tx.current
+    if (dx > 50) go(1)      // RTL: swipe right -> next (previous visually)
+    else if (dx < -50) go(-1)
+  }
+  const buy = () => {
+    updateItem(it.id, { bought: !it.bought })
+    if (!it.bought) { setPop(true); setTimeout(() => setPop(false), 700) }
+  }
+  return (
+    <div className="viewer" onClick={(e) => e.target.classList.contains('viewer') && setIdx(null)}>
+      <div className="vcard" onTouchStart={onStart} onTouchEnd={onEnd}>
+        <button className="vclose" onClick={() => setIdx(null)}>×</button>
+        <div className="vimg">
+          {imgSrc(it) ? <img src={imgSrc(it)} alt={it.name} /> : <div className="imgempty big"><span>💧</span><small>אין תמונה</small></div>}
+          {pop && <Sparkle />}
+        </div>
+        <div className="vname">{it.name}</div>
+        {it.desc && <div className="vdesc">{it.desc}</div>}
+        {it.status === 'tasted' && <div className="drops sm center">{[1, 2, 3, 4, 5].map((n) => <span key={n} className={`drop${n <= it.score ? ' on' : ''}`}>💧</span>)}</div>}
+        <button className={`buybtn${it.bought ? ' done' : ''}${pop ? ' pop' : ''}`} onClick={buy}>{it.bought ? 'קניתי ✓' : '✓ קניתי'}</button>
+        <div className="vnav">
+          <button onClick={() => go(-1)} disabled={idx === 0}>‹ הקודם</button>
+          <span className="vcount">{idx + 1}/{items.length}</span>
+          <button onClick={() => go(1)} disabled={idx === items.length - 1}>הבא ›</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+function Sparkle() {
+  return <div className="sparkle">{Array.from({ length: 10 }).map((_, i) => (
+    <span key={i} style={{ '--a': `${i * 36}deg` }}>✨</span>))}</div>
+}
+
+/* ===================== Modals ===================== */
+function Modal({ title, onClose, children }) {
+  return (
+    <div className="mback" onClick={(e) => e.target.classList.contains('mback') && onClose()}>
+      <div className="mbox">
+        <div className="mhead"><h3>{title}</h3><button className="vclose" onClick={onClose}>×</button></div>
+        {children}
+      </div>
+    </div>
+  )
+}
+function AddItemModal({ onClose, onAdd }) {
+  const [name, setName] = useState(''); const [type, setType] = useState('animal')
+  const [desc, setDesc] = useState(''); const [where, setWhere] = useState('')
+  return (
+    <Modal title="הוסף מוצר" onClose={onClose}>
+      <input className="finput" placeholder="שם המוצר" value={name} onChange={(e) => setName(e.target.value)} />
+      <div className="seg">
+        {[['animal', 'מן החי'], ['plant', 'צמחי'], ['other', 'אחר']].map(([k, l]) => (
+          <button key={k} className={type === k ? 'on' : ''} onClick={() => setType(k)}>{l}</button>))}
+      </div>
+      <input className="finput" placeholder="תיאור (לא חובה)" value={desc} onChange={(e) => setDesc(e.target.value)} />
+      <input className="finput" placeholder="איפה קונים (לא חובה)" value={where} onChange={(e) => setWhere(e.target.value)} />
+      <button className="savebtn full" disabled={!name.trim()} onClick={() => { onAdd({ name: name.trim(), type, desc, where }); onClose() }}>הוסף</button>
+    </Modal>
+  )
+}
+function AddCatModal({ onClose, onAdd }) {
+  const [name, setName] = useState(''); const [emoji, setEmoji] = useState('')
+  return (
+    <Modal title="הוסף תחום" onClose={onClose}>
+      <input className="finput" placeholder="שם התחום (למשל גבינות)" value={name} onChange={(e) => setName(e.target.value)} />
+      <input className="finput" placeholder="אימוג'י (לא חובה)" value={emoji} onChange={(e) => setEmoji(e.target.value)} />
+      <button className="savebtn full" disabled={!name.trim()} onClick={() => { onAdd(name.trim(), emoji.trim()); onClose() }}>הוסף</button>
+    </Modal>
+  )
+}
+function AddStoreModal({ onClose, onAdd }) {
+  const [name, setName] = useState(''); const [addr, setAddr] = useState(''); const [hours, setHours] = useState('')
+  return (
+    <Modal title="הוסף חנות" onClose={onClose}>
+      <input className="finput" placeholder="שם החנות" value={name} onChange={(e) => setName(e.target.value)} />
+      <input className="finput" placeholder="כתובת" value={addr} onChange={(e) => setAddr(e.target.value)} />
+      <input className="finput" placeholder="שעות פתיחה (טקסט חופשי, לא חובה)" value={hours} onChange={(e) => setHours(e.target.value)} />
+      <button className="savebtn full" disabled={!name.trim() || !addr.trim()} onClick={() => { onAdd(name.trim(), addr.trim(), hours.trim()); onClose() }}>הוסף</button>
+    </Modal>
+  )
+}
