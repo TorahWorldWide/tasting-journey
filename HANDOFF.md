@@ -13,9 +13,13 @@ Personal Hebrew RTL food-tasting tracker PWA for Tomer (Harish, IL). Read this f
 
 ## Files
 - `src/data.js` — catalog (16 milk items incl. משקה שקדים-קוקוס) + 6 REAL Harish-area stores (coords, verified hours, delivery URLs) + helpers (uid, fmt, storeOpen, wazeUrl, mapsUrl, DAY_NAMES). **Edit catalog/stores HERE.**
-- `src/App.jsx` — entire UI (one file, sub-components inline).
-- `src/App.css` — all styles + design tokens + Pokémon-GO animations.
+- `src/MapView.jsx` — the MAP tab (the heart of the app). Leaflet + free CartoDB Voyager tiles (no API key, no billing — Pokémon-GO style). Animated store markers (color by open/closed/unknown, drop-in + pulse ring, bounce when selected), tap → flyTo + bottom sheet. Locate button → geolocation pulsing user dot. Store sheet has "כניסה לחנות" → product grid.
+- `src/App.jsx` — shell + all other tabs (one file, sub-components inline). Map is the DEFAULT first tab. StoreInside component = the "enter store" product grid (tap cell = toggle bought).
+- `src/App.css` — all styles + design tokens + Pokémon-GO animations + map/marker/sheet/interior CSS.
 - `public/` — manifest.webmanifest, sw.js, icon*.png/svg. **Final, do not edit casually.**
+
+## Maps decision (important)
+Tomer asked for "Google Maps API". We deliberately use **Leaflet + OpenStreetMap (CartoDB Voyager tiles)** instead: free, no API key, no billing card required, and it's literally what Pokémon GO uses (Niantic moved to OSM in 2017). If he ever insists on Google tiles specifically, that needs a Google Cloud billing account + Maps JS API key — flag the cost before doing it.
 
 ## ⚠️ Persistence gotcha (same as the artifact original)
 Load = `{ ...DEFAULT_STATE, ...JSON.parse(localStorage[STORAGE_KEY]) }` and `parsed.categories` overrides the default array wholesale. So **editing the default catalog in data.js will NOT reach an install that already has saved state** — only a fresh install or after the user hits ⟳ Reset. Tell Tomer to add via the in-app "+ הוסף מוצר" or Reset.
