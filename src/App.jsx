@@ -13,7 +13,7 @@ function useFonts() {
     l.id = 'tj-fonts'
     l.rel = 'stylesheet'
     l.href =
-      'https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700;900&family=Heebo:wght@300;400;500;700&display=swap'
+      'https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800;900&family=Secular+One&display=swap'
     document.head.appendChild(l)
   }, [])
 }

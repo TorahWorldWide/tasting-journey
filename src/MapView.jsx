@@ -9,9 +9,9 @@ const CENTER = [32.4663, 35.0435]
 /* status -> marker accent color */
 function markerColor(s) {
   const o = storeOpen(s)
-  if (o === true) return '#34d39a'   // open – glowing mint
-  if (o === false) return '#f0708a'  // closed – soft rose
-  return '#46d6e6'                   // unknown – cyan
+  if (o === true) return '#2ee6a0'   // open – neon mint
+  if (o === false) return '#ff5d7a'  // closed – neon rose
+  return '#2ee6d6'                   // unknown – neon cyan
 }
 
 /* billboard-style floating store marker (original design, game-like vibe) */
@@ -42,13 +42,13 @@ export default function MapView({ stores, items, imgSrc, onEnterStore }) {
     if (mapRef.current || !elRef.current) return
     const map = L.map(elRef.current, { center: CENTER, zoom: 14, zoomControl: false, attributionControl: true })
     mapRef.current = map
-    // soft, free, no-key base (we restyle it with CSS filters into a PoGo-ish palette)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
+    // DARK basemap (CartoDB Dark Matter) — cool, moody, game-like; free, no key
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}{r}.png', {
       maxZoom: 20, subdomains: 'abcd', className: 'pogo-tiles',
       attribution: '&copy; OpenStreetMap &copy; CARTO',
     }).addTo(map)
     // labels on a separate pane so they stay crisp above the filtered terrain
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}{r}.png', {
       maxZoom: 20, subdomains: 'abcd', className: 'pogo-labels',
     }).addTo(map)
     L.control.zoom({ position: 'topright' }).addTo(map)
