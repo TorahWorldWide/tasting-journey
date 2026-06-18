@@ -237,69 +237,94 @@ span.drop.on { filter: none; }
   .mk-pulse { display: none; }
 }
 
-/* ---------- MAP ---------- */
+/* ---------- MAP (Pokémon-GO-inspired staging, original branding) ---------- */
 .content-map { padding: 0 !important; animation: none; }
-.mapview { position: relative; height: calc(100vh - 168px); min-height: 360px; }
-.mapcanvas { position: absolute; inset: 0; background: #e8f0ee; }
-.leaflet-container { font-family: 'Heebo', sans-serif; background: #e8f0ee; }
-.leaflet-control-attribution { font-size: 9px; opacity: .7; }
-.leaflet-bar a { border-radius: 8px !important; }
+.mapview { position: relative; height: calc(100vh - 168px); min-height: 380px; overflow: hidden; background: #cfe3d8; }
+.mapcanvas { position: absolute; inset: 0; }
+.leaflet-container { font-family: 'Heebo', sans-serif; background: #cfe3d8; }
+.leaflet-control-attribution { font-size: 9px; opacity: .55; }
+.leaflet-bar a { border-radius: 10px !important; border: none !important; background: rgba(20,40,38,.72) !important; color: #eafff8 !important; backdrop-filter: blur(6px); }
 
-/* animated store markers */
-.mk-wrap { background: none !important; border: none !important; }
-.mk { position: relative; width: 46px; height: 46px; }
-.mk-pin {
-  position: absolute; left: 50%; top: 2px; transform: translateX(-50%);
-  width: 38px; height: 38px; border-radius: 50% 50% 50% 0;
-  background: var(--mc); color: #fff; display: grid; place-items: center;
-  font-size: 18px; rotate: -45deg; box-shadow: 0 4px 10px rgba(0,0,0,.3);
-  animation: mkdrop .5s var(--spring) both;
-}
-.mk-pin > * { rotate: 45deg; }
-@keyframes mkdrop { 0% { opacity: 0; transform: translateX(-50%) translateY(-22px) scale(.4); } 100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); } }
-.mk-pulse {
-  position: absolute; left: 50%; top: 20px; transform: translate(-50%, -50%);
-  width: 18px; height: 18px; border-radius: 50%; background: var(--mc);
-  animation: mkpulse 2s ease-out infinite; opacity: .5;
-}
-@keyframes mkpulse { 0% { transform: translate(-50%,-50%) scale(.6); opacity: .6; } 100% { transform: translate(-50%,-50%) scale(3.4); opacity: 0; } }
-.mk-active .mk-pin { animation: mkbounce .6s var(--spring) infinite; z-index: 5; }
-@keyframes mkbounce { 0%,100% { transform: translateX(-50%) translateY(0) scale(1.12); } 50% { transform: translateX(-50%) translateY(-7px) scale(1.18); } }
+/* restyle the free tiles into a soft, muted, slightly-cool game palette */
+.pogo-tiles { filter: saturate(.58) brightness(1.06) contrast(.92) hue-rotate(-6deg); }
+.pogo-labels { filter: saturate(.5) brightness(.9); opacity: .85; }
 
-/* user dot */
-.userdot-wrap { background: none !important; border: none !important; }
-.userdot { width: 24px; height: 24px; position: relative; }
-.userdot::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: #2F6F73; opacity: .25; animation: udpulse 1.8s ease-out infinite; }
-.userdot-core { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 14px; height: 14px; border-radius: 50%; background: #2F6F73; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
-@keyframes udpulse { 0% { transform: scale(.7); opacity: .5; } 100% { transform: scale(2.6); opacity: 0; } }
+/* dark vignette + cool wash, like the PoGo camera */
+.mapvignette { position: absolute; inset: 0; pointer-events: none; z-index: 410;
+  background:
+    radial-gradient(120% 90% at 50% 42%, rgba(10,30,32,0) 52%, rgba(8,26,30,.34) 100%),
+    linear-gradient(180deg, rgba(16,52,56,.12), rgba(16,52,56,0) 22%); }
 
-/* locate button */
-.locbtn { position: absolute; bottom: 16px; inset-inline-start: 14px; z-index: 500; width: 48px; height: 48px; border-radius: 999px; border: none; background: var(--surface); box-shadow: 0 4px 14px rgba(0,0,0,.2); font-size: 22px; cursor: pointer; transition: transform .15s var(--spring); }
+/* ---- floating store markers (billboard, glowing, bobbing) ---- */
+.mk2-wrap { background: none !important; border: none !important; }
+.mk2 { position: relative; width: 62px; height: 74px; }
+.mk2-shadow { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); width: 30px; height: 9px; border-radius: 50%; background: rgba(0,0,0,.32); filter: blur(2.5px); }
+.mk2-body { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); animation: bob2 2.6s ease-in-out infinite; }
+.mk2-disc { width: 46px; height: 46px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffffff, #f3fbf8 60%, #e3f3ee);
+  border: 3px solid var(--mc); display: grid; place-items: center; font-size: 22px;
+  box-shadow: 0 0 0 4px rgba(255,255,255,.35), 0 0 16px var(--mc), 0 5px 12px rgba(0,0,0,.3);
+  position: relative; z-index: 2; }
+.mk2-ring { position: absolute; left: 50%; top: 23px; transform: translate(-50%,-50%); width: 56px; height: 56px; border-radius: 50%; border: 2.5px dashed var(--mc); opacity: .85; animation: spin 7s linear infinite; }
+@keyframes bob2 { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-6px); } }
+@keyframes spin { to { transform: translate(-50%,-50%) rotate(360deg); } }
+.mk2-active { z-index: 600; }
+.mk2-active .mk2-disc { animation: mkbounce2 .7s var(--spring) infinite; box-shadow: 0 0 0 5px rgba(255,255,255,.5), 0 0 26px var(--mc), 0 0 44px var(--mc), 0 6px 14px rgba(0,0,0,.35); }
+@keyframes mkbounce2 { 0%,100% { transform: translateY(0) scale(1.08); } 50% { transform: translateY(-8px) scale(1.14); } }
+
+/* ---- player avatar: the "you" (themed milk-drop hero) ---- */
+.avatar { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -58%); z-index: 430; pointer-events: none; width: 90px; height: 110px; }
+.avatar-reach { position: absolute; left: 50%; top: 74px; transform: translate(-50%,-50%); width: 150px; height: 60px; border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(70,214,230,.30), rgba(70,214,230,.06) 60%, transparent 72%);
+  border: 2px solid rgba(70,214,230,.45); animation: reach 2.6s ease-in-out infinite; }
+@keyframes reach { 0%,100% { transform: translate(-50%,-50%) scale(.92); opacity: .8; } 50% { transform: translate(-50%,-50%) scale(1.08); opacity: 1; } }
+.avatar-disc { position: absolute; left: 50%; top: 72px; transform: translate(-50%,-50%); width: 56px; height: 22px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, #3a8589, #245658); box-shadow: 0 4px 10px rgba(0,0,0,.35); }
+.avatar-char { position: absolute; left: 50%; top: 30px; transform: translate(-50%,-50%); font-size: 40px;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,.35)); animation: hover2 2.8s ease-in-out infinite; }
+@keyframes hover2 { 0%,100% { transform: translate(-50%,-50%) translateY(0); } 50% { transform: translate(-50%,-50%) translateY(-5px); } }
+.avatar-found .avatar-reach { border-color: rgba(52,211,154,.6); background: radial-gradient(ellipse at center, rgba(52,211,154,.3), rgba(52,211,154,.06) 60%, transparent 72%); }
+
+/* floating brand badge */
+.mapbrand { position: absolute; top: 12px; inset-inline-end: 12px; z-index: 440; display: flex; align-items: center; gap: 5px;
+  background: rgba(20,44,46,.66); color: #eafff8; font-family: 'Frank Ruhl Libre', serif; font-weight: 700; font-size: 15px;
+  padding: 7px 14px; border-radius: 999px; backdrop-filter: blur(8px); box-shadow: 0 4px 14px rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.12); }
+.mapbrand span { animation: bob 3s var(--spring) infinite; }
+
+/* locate button (glowing game button) */
+.locbtn { position: absolute; bottom: 18px; inset-inline-start: 16px; z-index: 500; width: 52px; height: 52px; border-radius: 999px; border: 2px solid rgba(255,255,255,.5);
+  background: radial-gradient(circle at 35% 30%, #3a8589, #245658); color: #fff; font-size: 22px; cursor: pointer;
+  box-shadow: 0 0 16px rgba(47,111,115,.6), 0 4px 14px rgba(0,0,0,.3); transition: transform .15s var(--spring); }
 .locbtn:active { transform: scale(.9); }
 
-/* store bottom sheet */
+/* store bottom sheet — game UI panel */
 .sheet { position: fixed; inset: 0; z-index: 800; display: flex; align-items: flex-end; justify-content: center; }
-.sheetbox { position: relative; width: 100%; max-width: 480px; background: var(--surface); border-radius: 24px 24px 0 0; padding: 12px 16px calc(env(safe-area-inset-bottom) + 90px); box-shadow: 0 -8px 30px rgba(0,0,0,.18); animation: slideup .32s var(--spring) both; }
-.sheetgrip { width: 42px; height: 5px; border-radius: 999px; background: var(--hair); margin: 2px auto 12px; }
+.sheetbox { position: relative; width: 100%; max-width: 480px;
+  background: linear-gradient(180deg, #ffffff, #f7faf8); border-radius: 26px 26px 0 0;
+  padding: 12px 16px calc(env(safe-area-inset-bottom) + 92px); box-shadow: 0 -10px 34px rgba(0,0,0,.22);
+  border-top: 3px solid var(--accent); animation: slideup .32s var(--spring) both; }
+.sheetgrip { width: 44px; height: 5px; border-radius: 999px; background: var(--hair); margin: 2px auto 12px; }
 .sheethead { display: flex; align-items: center; gap: 8px; padding-inline-end: 34px; }
-.sheethead h3 { margin: 0; font-size: 19px; font-family: 'Frank Ruhl Libre', serif; }
+.sheethead h3 { margin: 0; font-size: 20px; font-family: 'Frank Ruhl Libre', serif; }
 .sheetbox .vclose { position: absolute; top: 12px; left: 12px; }
-.enterbtn { width: 100%; margin-top: 14px; padding: 14px; border: none; border-radius: 14px; background: var(--accent); color: #fff; font-family: inherit; font-size: 16px; font-weight: 700; cursor: pointer; transition: transform .15s var(--spring); }
+.enterbtn { width: 100%; margin-top: 14px; padding: 15px; border: none; border-radius: 16px;
+  background: linear-gradient(135deg, #2F6F73, #34d39a); color: #fff; font-family: inherit; font-size: 16px; font-weight: 800;
+  cursor: pointer; box-shadow: 0 6px 18px rgba(47,111,115,.4); transition: transform .15s var(--spring); }
 .enterbtn:active { transform: scale(.97); }
 .sheetbtns { display: flex; gap: 8px; margin-top: 10px; }
 
 /* store interior */
 .inside { position: fixed; inset: 0; z-index: 850; background: var(--bg); overflow-y: auto; animation: slideup .3s var(--spring) both; padding-bottom: 30px; }
-.insidehead { position: sticky; top: 0; background: linear-gradient(180deg, var(--accent), var(--accent-d)); color: #fff; padding: calc(env(safe-area-inset-top) + 18px) 18px 18px; }
-.insidehead .vclose { position: absolute; top: calc(env(safe-area-inset-top) + 12px); left: 12px; background: rgba(255,255,255,.2); color: #fff; }
-.insidetitle { font-size: 22px; font-weight: 900; font-family: 'Frank Ruhl Libre', serif; }
-.insidesub { font-size: 13px; opacity: .85; margin-top: 2px; }
+.insidehead { position: sticky; top: 0; z-index: 2; background: linear-gradient(135deg, var(--accent), #34d39a); color: #fff; padding: calc(env(safe-area-inset-top) + 18px) 18px 18px; box-shadow: 0 4px 16px rgba(0,0,0,.15); }
+.insidehead .vclose { position: absolute; top: calc(env(safe-area-inset-top) + 12px); left: 12px; background: rgba(255,255,255,.22); color: #fff; }
+.insidetitle { font-size: 23px; font-weight: 900; font-family: 'Frank Ruhl Libre', serif; }
+.insidesub { font-size: 13px; opacity: .9; margin-top: 2px; }
 .insidegrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
-.gcell { background: var(--surface); border: 1px solid var(--hair); border-radius: 16px; overflow: hidden; cursor: pointer; box-shadow: 0 6px 16px rgba(0,0,0,.05); animation: cardin .4s var(--spring) both; transition: transform .15s var(--spring); }
-.gcell:active { transform: scale(.96); }
-.gcell.bought { outline: 2.5px solid var(--daily); }
-.gimg { position: relative; height: 130px; background: #f3f1ec; display: grid; place-items: center; }
+.gcell { background: var(--surface); border: 1px solid var(--hair); border-radius: 18px; overflow: hidden; cursor: pointer; box-shadow: 0 6px 16px rgba(0,0,0,.06); animation: cardin .4s var(--spring) both; transition: transform .15s var(--spring); }
+.gcell:active { transform: scale(.95); }
+.gcell.bought { outline: 3px solid var(--daily); }
+.gimg { position: relative; height: 132px; background: #f3f1ec; display: grid; place-items: center; }
 .gimg img { width: 100%; height: 100%; object-fit: cover; }
-.gph { font-size: 34px; opacity: .5; }
-.gtick { position: absolute; top: 6px; inset-inline-end: 6px; width: 26px; height: 26px; border-radius: 999px; background: var(--daily); color: #fff; display: grid; place-items: center; font-weight: 800; animation: gotcha .4s var(--spring); }
+.gph { font-size: 36px; opacity: .5; }
+.gtick { position: absolute; top: 6px; inset-inline-end: 6px; width: 28px; height: 28px; border-radius: 999px; background: var(--daily); color: #fff; display: grid; place-items: center; font-weight: 800; animation: gotcha .4s var(--spring); }
 .gname { padding: 9px 10px; font-size: 14px; font-weight: 600; font-family: 'Frank Ruhl Libre', serif; }

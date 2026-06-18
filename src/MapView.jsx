@@ -6,23 +6,26 @@ import { storeOpen, fmt, wazeUrl, mapsUrl, DAY_NAMES } from './data.js'
 /* Harish center */
 const CENTER = [32.4663, 35.0435]
 
-/* status -> marker color */
+/* status -> marker accent color */
 function markerColor(s) {
   const o = storeOpen(s)
-  if (o === true) return '#3C6E3C'   // open green
-  if (o === false) return '#9A4444'  // closed red
-  return '#2F6F73'                   // unknown teal
+  if (o === true) return '#34d39a'   // open – glowing mint
+  if (o === false) return '#f0708a'  // closed – soft rose
+  return '#46d6e6'                   // unknown – cyan
 }
 
-/* build an animated divIcon (pulse ring + pin) */
+/* billboard-style floating store marker (original design, game-like vibe) */
 function storeIcon(s, active) {
   const c = markerColor(s)
   const html = `
-    <div class="mk ${active ? 'mk-active' : ''}">
-      <div class="mk-pulse" style="--mc:${c}"></div>
-      <div class="mk-pin" style="--mc:${c}">🏪</div>
+    <div class="mk2 ${active ? 'mk2-active' : ''}">
+      <div class="mk2-shadow"></div>
+      <div class="mk2-body" style="--mc:${c}">
+        <div class="mk2-ring"></div>
+        <div class="mk2-disc">🏪</div>
+      </div>
     </div>`
-  return L.divIcon({ html, className: 'mk-wrap', iconSize: [46, 46], iconAnchor: [23, 42], popupAnchor: [0, -40] })
+  return L.divIcon({ html, className: 'mk2-wrap', iconSize: [62, 74], iconAnchor: [31, 66], popupAnchor: [0, -60] })
 }
 
 export default function MapView({ stores, items, imgSrc, onEnterStore }) {
@@ -30,31 +33,32 @@ export default function MapView({ stores, items, imgSrc, onEnterStore }) {
   const elRef = useRef(null)
   const markersRef = useRef({})
   const userRef = useRef(null)
-  const [sel, setSel] = useState(null) // selected store id
-  const [reduced] = useState(() =>
-    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+  const [sel, setSel] = useState(null)
+  const [located, setLocated] = useState(false)
+  const [reduced] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
 
   /* init map once */
   useEffect(() => {
     if (mapRef.current || !elRef.current) return
-    const map = L.map(elRef.current, {
-      center: CENTER, zoom: 13, zoomControl: false, attributionControl: true,
-    })
+    const map = L.map(elRef.current, { center: CENTER, zoom: 14, zoomControl: false, attributionControl: true })
     mapRef.current = map
-    // stylized, free, no-key tiles (CartoDB Voyager — playful, like a game map)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20, subdomains: 'abcd',
+    // soft, free, no-key base (we restyle it with CSS filters into a PoGo-ish palette)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
+      maxZoom: 20, subdomains: 'abcd', className: 'pogo-tiles',
       attribution: '&copy; OpenStreetMap &copy; CARTO',
     }).addTo(map)
-    L.control.zoom({ position: 'topleft' }).addTo(map)
-    // fit to all stores
+    // labels on a separate pane so they stay crisp above the filtered terrain
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
+      maxZoom: 20, subdomains: 'abcd', className: 'pogo-labels',
+    }).addTo(map)
+    L.control.zoom({ position: 'topright' }).addTo(map)
     const pts = stores.filter((s) => s.lat && s.lng).map((s) => [s.lat, s.lng])
-    if (pts.length) map.fitBounds(pts, { padding: [60, 60], maxZoom: 14 })
-    setTimeout(() => map.invalidateSize(), 100)
+    if (pts.length) map.fitBounds(pts, { padding: [70, 70], maxZoom: 14 })
+    setTimeout(() => map.invalidateSize(), 120)
     return () => { map.remove(); mapRef.current = null }
   }, []) // eslint-disable-line
 
-  /* (re)draw store markers */
+  /* (re)draw markers */
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -73,12 +77,9 @@ export default function MapView({ stores, items, imgSrc, onEnterStore }) {
     setSel(id)
     const s = stores.find((x) => x.id === id)
     const map = mapRef.current
-    if (s && s.lat && map) {
-      map.flyTo([s.lat, s.lng], 15, { duration: reduced ? 0 : 0.9 })
-    }
+    if (s && s.lat && map) map.flyTo([s.lat, s.lng], 16, { duration: reduced ? 0 : 0.9 })
   }
 
-  /* user location */
   const locate = () => {
     if (!navigator.geolocation) { alert('הדפדפן לא תומך במיקום.'); return }
     navigator.geolocation.getCurrentPosition(
@@ -87,9 +88,9 @@ export default function MapView({ stores, items, imgSrc, onEnterStore }) {
         const map = mapRef.current
         if (!map) return
         if (userRef.current) userRef.current.remove()
-        const ic = L.divIcon({ html: '<div class="userdot"><div class="userdot-core"></div></div>', className: 'userdot-wrap', iconSize: [24, 24], iconAnchor: [12, 12] })
-        userRef.current = L.marker([la, lo], { icon: ic, interactive: false }).addTo(map)
-        map.flyTo([la, lo], 14, { duration: reduced ? 0 : 0.9 })
+        // invisible anchor marker so the avatar can sit at real GPS while we keep it visually centered
+        map.flyTo([la, lo], 15, { duration: reduced ? 0 : 0.9 })
+        setLocated(true)
       },
       () => alert('לא הצלחתי לאתר מיקום — אשר הרשאת מיקום בדפדפן.'),
       { enableHighAccuracy: true, timeout: 8000 }
@@ -101,26 +102,35 @@ export default function MapView({ stores, items, imgSrc, onEnterStore }) {
   return (
     <div className="mapview">
       <div ref={elRef} className="mapcanvas" />
+      <div className="mapvignette" />
+
+      {/* player avatar — the PoGo-style "you", centered, with a glowing reach ring (themed: milk-drop hero) */}
+      <div className={`avatar${located ? ' avatar-found' : ''}`}>
+        <div className="avatar-reach" />
+        <div className="avatar-disc" />
+        <div className="avatar-char">💧</div>
+        <div className="avatar-foot" />
+      </div>
+
+      {/* floating brand badge */}
+      <div className="mapbrand"><span>💧</span> מסע טעימות</div>
+
       <button className="locbtn" onClick={locate} title="המיקום שלי">📍</button>
 
       {selStore && (
-        <StoreSheet
-          s={selStore} items={items} imgSrc={imgSrc}
-          onClose={() => setSel(null)}
-          onEnter={() => onEnterStore(selStore)}
-        />
+        <StoreSheet s={selStore} items={items} imgSrc={imgSrc}
+          onClose={() => setSel(null)} onEnter={() => onEnterStore(selStore)} />
       )}
     </div>
   )
 }
 
-/* ---------- bottom sheet ---------- */
+/* ---------- bottom sheet (game-UI styled) ---------- */
 function StoreSheet({ s, items, imgSrc, onClose, onEnter }) {
   const status = storeOpen(s)
   const today = new Date().getDay()
   const th = s.hours?.[today]
   const [showHours, setShowHours] = useState(false)
-  // products linked to this store via where-substring
   const firstWord = (s.name || '').split(' ')[0]
   const linked = items.filter((it) => it.where && firstWord && it.where.includes(firstWord))
   return (
@@ -149,11 +159,9 @@ function StoreSheet({ s, items, imgSrc, onClose, onEnter }) {
             ))}
           </ul>
         )}
-
         <button className="enterbtn" onClick={onEnter}>
           🚪 כניסה לחנות {linked.length ? `(${linked.length} מוצרים)` : ''}
         </button>
-
         <div className="sheetbtns">
           <a className="navbtn waze" href={wazeUrl(s)} target="_blank" rel="noreferrer">Waze</a>
           <a className="navbtn maps" href={mapsUrl(s)} target="_blank" rel="noreferrer">Maps</a>
