@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   uid, STORAGE_KEY, DEFAULT_STATE, fmt, storeOpen, wazeUrl, mapsUrl, DAY_NAMES,
 } from './data.js'
+import MapView from './MapView.jsx'
 import './App.css'
 
 /* ---------- Google Fonts injection ---------- */
@@ -81,10 +82,11 @@ export default function App() {
   useFonts()
   const [state, setState] = useState(DEFAULT_STATE)
   const [loaded, setLoaded] = useState(false)
-  const [tab, setTab] = useState('catalog')
+  const [tab, setTab] = useState('map')
   const [photoCache, setPhotoCache] = useState({}) // itemId -> dataUrl
   const [viewerIdx, setViewerIdx] = useState(null)
   const [modal, setModal] = useState(null) // 'addItem' | 'addCat' | 'addStore'
+  const [enteredStore, setEnteredStore] = useState(null)
 
   /* load */
   useEffect(() => {
@@ -199,7 +201,11 @@ export default function App() {
         onAddCat={() => setModal('addCat')}
       />
 
-      <main className="content" key={tab}>
+      <main className={`content${tab === 'map' ? ' content-map' : ''}`} key={tab}>
+        {tab === 'map' && (
+          <MapView stores={state.stores} items={items} imgSrc={imgSrc}
+            onEnterStore={(s) => setEnteredStore(s)} />
+        )}
         {tab === 'catalog' && (
           <Catalog items={items} updateItem={updateItem} deleteItem={deleteItem}
             imgSrc={imgSrc} setItemPhotoFromFile={setItemPhotoFromFile}
@@ -218,7 +224,7 @@ export default function App() {
       </main>
 
       <nav className="tabbar">
-        {[['catalog', 'קטלוג', '🥛'], ['list', 'רשימה', '📝'], ['stores', 'חנויות', '🏪'], ['daily', 'היומיום', '⭐']].map(([k, label, ic]) => (
+        {[['map', 'מפה', '🗺️'], ['catalog', 'קטלוג', '🥛'], ['list', 'רשימה', '📝'], ['stores', 'חנויות', '🏪'], ['daily', 'היומיום', '⭐']].map(([k, label, ic]) => (
           <button key={k} className={`tabbtn${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>
             <span className="tabic">{ic}</span>
             <span className="tablbl">{label}</span>
@@ -229,6 +235,11 @@ export default function App() {
 
       {viewerIdx !== null && items[viewerIdx] && (
         <Viewer items={items} idx={viewerIdx} setIdx={setViewerIdx} imgSrc={imgSrc} updateItem={updateItem} />
+      )}
+
+      {enteredStore && (
+        <StoreInside store={enteredStore} items={items} imgSrc={imgSrc} updateItem={updateItem}
+          onClose={() => setEnteredStore(null)} />
       )}
 
       {modal === 'addItem' && <AddItemModal onClose={() => setModal(null)} onAdd={addItem} />}
@@ -534,6 +545,34 @@ function Viewer({ items, idx, setIdx, imgSrc, updateItem }) {
 function Sparkle() {
   return <div className="sparkle">{Array.from({ length: 10 }).map((_, i) => (
     <span key={i} style={{ '--a': `${i * 36}deg` }}>✨</span>))}</div>
+}
+
+/* ===================== Store interior (enter a store) ===================== */
+function StoreInside({ store, items, imgSrc, updateItem, onClose }) {
+  const firstWord = (store.name || '').split(' ')[0]
+  const linked = items.filter((it) => it.where && firstWord && it.where.includes(firstWord))
+  const list = linked.length ? linked : items // fallback: show all if none mapped
+  return (
+    <div className="inside">
+      <div className="insidehead">
+        <button className="vclose static" onClick={onClose}>×</button>
+        <div className="insidetitle">🚪 {store.name}</div>
+        <div className="insidesub">{linked.length ? 'מוצרים שמשויכים לחנות זו' : 'כל המוצרים בתחום'}</div>
+      </div>
+      <div className="insidegrid">
+        {list.map((it) => (
+          <div key={it.id} className={`gcell${it.bought ? ' bought' : ''}`}
+            onClick={() => updateItem(it.id, { bought: !it.bought })}>
+            <div className="gimg">
+              {imgSrc(it) ? <img src={imgSrc(it)} alt={it.name} loading="lazy" /> : <span className="gph">💧</span>}
+              {it.bought && <span className="gtick">✓</span>}
+            </div>
+            <div className="gname">{it.name}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 /* ===================== Modals ===================== */
