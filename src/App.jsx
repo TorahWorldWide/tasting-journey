@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import L from 'leaflet'
 import {
   uid, STORAGE_KEY, DEFAULT_STATE, fmt, storeOpen, wazeUrl, mapsUrl, DAY_NAMES,
 } from './data.js'
@@ -87,6 +88,7 @@ export default function App() {
   const [viewerIdx, setViewerIdx] = useState(null)
   const [modal, setModal] = useState(null) // 'addItem' | 'addCat' | 'addStore'
   const [enteredStore, setEnteredStore] = useState(null)
+  const [nav, setNav] = useState(null) // active navigation route
 
   /* load */
   useEffect(() => {
@@ -203,11 +205,14 @@ export default function App() {
 
       <main className={`content${tab === 'map' ? ' content-map' : ''}`} key={tab}>
         {tab === 'map' && (
-          <MapView stores={state.stores} items={items} imgSrc={imgSrc}
-            onEnterStore={(s) => setEnteredStore(s)} />
+          <MapView stores={state.stores} items={items}
+            listItems={items.filter((i) => i.status === 'list')}
+            imgSrc={imgSrc}
+            onEnterStore={(s) => setEnteredStore(s)}
+            onNavigate={(r) => setNav(r)} />
         )}
         {tab === 'catalog' && (
-          <Catalog items={items} updateItem={updateItem} deleteItem={deleteItem}
+          <Catalog items={items} stores={state.stores} updateItem={updateItem} deleteItem={deleteItem}
             imgSrc={imgSrc} setItemPhotoFromFile={setItemPhotoFromFile}
             setItemPhotoByBarcode={setItemPhotoByBarcode} setItemPhotoByUrl={setItemPhotoByUrl}
             removeItemPhoto={removeItemPhoto} openViewer={(id) => setViewerIdx(items.findIndex((x) => x.id === id))}
@@ -241,6 +246,8 @@ export default function App() {
         <StoreInside store={enteredStore} items={items} imgSrc={imgSrc} updateItem={updateItem}
           onClose={() => setEnteredStore(null)} />
       )}
+
+      {nav && <NavView route={nav} onClose={() => setNav(null)} />}
 
       {modal === 'addItem' && <AddItemModal onClose={() => setModal(null)} onAdd={addItem} />}
       {modal === 'addCat' && <AddCatModal onClose={() => setModal(null)} onAdd={addCategory} />}
@@ -330,15 +337,42 @@ function RateBox({ item, onSave, onCancel }) {
 }
 
 /* ===================== Catalog ===================== */
-function Catalog({ items, updateItem, deleteItem, imgSrc, setItemPhotoFromFile, setItemPhotoByBarcode, setItemPhotoByUrl, removeItemPhoto, openViewer, onAddItem }) {
+function Catalog({ items, stores, updateItem, deleteItem, imgSrc, setItemPhotoFromFile, setItemPhotoByBarcode, setItemPhotoByUrl, removeItemPhoto, openViewer, onAddItem }) {
   const [rating, setRating] = useState(null)
+  const [q, setQ] = useState('')
+  const query = q.trim()
+  const chains = stores.filter((s) => s.inventoryUrl)
+  const filtered = query
+    ? items.filter((it) => (it.name + ' ' + (it.desc || '')).includes(query))
+    : items
+  const SearchBar = (
+    <div className="searchwrap">
+      <div className="searchbar">
+        <span className="searchic">🔎</span>
+        <input className="searchinput" placeholder="חפש מוצר (למשל: שקדים, עיזים…)"
+          value={q} onChange={(e) => setQ(e.target.value)} />
+        {q && <button className="searchx" onClick={() => setQ('')}>×</button>}
+      </div>
+      {query && (
+        <div className="searchchains">
+          <span className="searchchains-lbl">חפש "{query}" באונליין:</span>
+          {chains.map((s) => (
+            <a key={s.id} className="chainlink" target="_blank" rel="noreferrer"
+              href={s.inventoryUrl + encodeURIComponent(query)}>{s.name.split(' ')[0]}</a>
+          ))}
+        </div>
+      )}
+    </div>
+  )
   if (!items.length)
     return <div className="empty">אין עדיין מוצרים בתחום הזה.<br />הוסף את הראשון 👇
       <div style={{ marginTop: 16 }}><button className="bigadd" onClick={onAddItem}>+ הוסף מוצר משלך</button></div></div>
   return (
     <div className="catalog">
+      {SearchBar}
+      {query && !filtered.length && <div className="empty sm">לא נמצא "{query}" ברשימה שלך — נסה לחפש באונליין למעלה, או הוסף מוצר.</div>}
       {TYPE_ORDER.map((t) => {
-        const group = items.filter((i) => i.type === t)
+        const group = filtered.filter((i) => i.type === t)
         if (!group.length) return null
         return (
           <section key={t} className="grp">
@@ -570,6 +604,66 @@ function StoreInside({ store, items, imgSrc, updateItem, onClose }) {
             <div className="gname">{it.name}</div>
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+/* ===================== In-app navigation (no Waze) ===================== */
+function NavView({ route, onClose }) {
+  const elRef = useRef(null)
+  const mapRef = useRef(null)
+  const [step, setStep] = useState(0) // current stop index
+  useEffect(() => {
+    if (mapRef.current || !elRef.current) return
+    const map = L.map(elRef.current, { zoomControl: false, attributionControl: false })
+    mapRef.current = map
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}{r}.png',
+      { maxZoom: 20, subdomains: 'abcd', className: 'pogo-tiles' }).addTo(map)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}{r}.png',
+      { maxZoom: 20, subdomains: 'abcd', className: 'pogo-labels' }).addTo(map)
+    if (route.coords?.length) {
+      L.polyline(route.coords, { color: '#22e0c8', weight: 12, opacity: .22 }).addTo(map)
+      L.polyline(route.coords, { color: '#22e0c8', weight: 5, opacity: .95 }).addTo(map)
+    }
+    route.order.forEach((s, i) => {
+      const ic = L.divIcon({ html: `<div class="navpin">${i + 1}</div>`, className: 'navpin-wrap', iconSize: [30, 30], iconAnchor: [15, 15] })
+      L.marker([s.lat, s.lng], { icon: ic }).addTo(map)
+    })
+    if (route.coords?.length) map.fitBounds(L.polyline(route.coords).getBounds(), { padding: [50, 50] })
+    setTimeout(() => map.invalidateSize(), 120)
+    return () => { map.remove(); mapRef.current = null }
+  }, []) // eslint-disable-line
+
+  const cur = route.order[step]
+  const focusStop = (i) => {
+    setStep(i)
+    const s = route.order[i]
+    if (s && mapRef.current) mapRef.current.flyTo([s.lat, s.lng], 16, { duration: 0.7 })
+  }
+  return (
+    <div className="navview">
+      <div ref={elRef} className="navmap" />
+      <div className="mapvignette" />
+      <button className="navback" onClick={onClose}>‹ סיום</button>
+      <div className="navhud">
+        <div className="navhud-top">
+          <span>תחנה {step + 1}/{route.order.length}</span>
+          <span>🛣️ {route.km.toFixed(1)} ק״מ · ⏱️ ~{Math.round(route.min)} דק׳</span>
+        </div>
+        <div className="navhud-stop">
+          <div className="navhud-num">{step + 1}</div>
+          <div>
+            <div className="navhud-name">{cur?.name}</div>
+            <div className="navhud-addr">{cur?.addr}</div>
+          </div>
+        </div>
+        <div className="navhud-btns">
+          <button className="ghostbtn" disabled={step === 0} onClick={() => focusStop(step - 1)}>‹ הקודמת</button>
+          {step < route.order.length - 1
+            ? <button className="gobtn sm" onClick={() => focusStop(step + 1)}>הגעתי — הבאה ›</button>
+            : <button className="gobtn sm done" onClick={onClose}>✓ סיימתי הכל</button>}
+        </div>
       </div>
     </div>
   )

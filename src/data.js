@@ -54,32 +54,35 @@ export const STORES = [
     lat: 32.4705928, lng: 35.0391716,
     note: 'הכי גדול בחריש — כל חלבי הפרה + צמחי נפוץ',
     hours: [{o:8,c:21},{o:8,c:21},{o:8,c:21},{o:8,c:22},{o:8,c:22},{o:7,c:15.5},null],
-    delivery: true, deliveryUrl: 'https://www.shufersal.co.il/online/he/A' },
+    delivery: true, deliveryUrl: 'https://www.shufersal.co.il/online/he/A',
+    inventoryUrl: 'https://www.shufersal.co.il/online/he/search?text=' },
   { id: 's2', name: 'סופר הצינור', addr: 'דרך ארץ 28, חריש',
     lat: 32.464241, lng: 35.0411454,
     note: 'דיסקאונט — מוצרי חלב זולים יותר',
     hours: [{o:7.5,c:22},{o:7.5,c:22},{o:7.5,c:22},{o:7.5,c:22},{o:7.5,c:22},{o:7.5,c:15},null],
-    delivery: false, deliveryUrl: '' },
+    delivery: false, deliveryUrl: '', inventoryUrl: '' },
   { id: 's3', name: 'כליל הטבע', addr: 'דרך ארץ 51, חריש',
     lat: 32.4618211, lng: 35.0460919,
     note: 'חנות טבע — משקאות צמחיים וחלב עיזים',
     hours: [{o:8,c:20},{o:8,c:20},{o:8,c:20},{o:8,c:20},{o:8,c:20},{o:8,c:14},null],
-    delivery: false, deliveryUrl: '' },
+    delivery: false, deliveryUrl: '', inventoryUrl: '' },
   { id: 's4', name: 'עמליה — חנות טבע', addr: 'טורקיז 5, חריש',
     lat: 32.4624565, lng: 35.0470177,
     note: 'אלטרנטיבות טבעוניות ומשקאות צמחיים',
     hours: [{o:8,c:17},{o:8,c:17},{o:8,c:17},{o:8,c:17},{o:8,c:17},{o:8,c:15},null],
-    delivery: false, deliveryUrl: '' },
+    delivery: false, deliveryUrl: '', inventoryUrl: '' },
   { id: 's5', name: 'רמי לוי ביג — פרדס חנה', addr: 'תדהר 1, פרדס חנה-כרכור',
     lat: 32.4888176, lng: 34.9705182,
     note: 'מבחר ענק — שווה נסיעה לסבב גדול',
     hours: [{o:8,c:22},{o:8,c:22},{o:8,c:22},{o:7.5,c:23},{o:7.5,c:23},{o:7,c:13},{o:20.5,c:23}],
-    delivery: true, deliveryUrl: 'https://www.rami-levy.co.il/he/online/market' },
+    delivery: true, deliveryUrl: 'https://www.rami-levy.co.il/he/online/market',
+    inventoryUrl: 'https://www.rami-levy.co.il/he/online/market/search?q=' },
   { id: 's6', name: 'יוחננוף — חדרה', addr: 'צה״ל 35, חדרה',
     lat: 32.4414918, lng: 34.930406,
     note: 'גדול, עגלות חכמות, מבחר רחב',
     hours: [{o:8,c:21},{o:8,c:21.5},{o:8,c:22},{o:8,c:22.5},{o:8,c:23},{o:7,c:15},null],
-    delivery: true, deliveryUrl: 'https://www.yochananof.co.il/' },
+    delivery: true, deliveryUrl: 'https://www.yochananof.co.il/',
+    inventoryUrl: 'https://www.yochananof.co.il/' },
 ];
 
 export const DEFAULT_STATE = {
@@ -120,3 +123,35 @@ export const mapsUrl = (s) =>
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.addr)}`;
 
 export const DAY_NAMES = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'שבת'];
+
+/* big supermarkets vs health/natural shops (by id) for the default Harish set */
+const SUPERMARKET_IDS = ['s1', 's2', 's5', 's6'];
+const HEALTH_IDS = ['s3', 's4'];
+
+/* Map a product to the local stores likely to carry it, from its `where` hint.
+   Approximate (real per-branch inventory comes later from price-transparency feeds). */
+export function storesForItem(item, stores) {
+  if (!item || !stores) return [];
+  const where = item.where || '';
+  const ids = new Set();
+  // direct name match (first word of each store name)
+  stores.forEach((s) => {
+    const w = (s.name || '').split(' ')[0];
+    if (w && where.includes(w)) ids.add(s.id);
+  });
+  if (/כל סופר|סופר/.test(where)) SUPERMARKET_IDS.forEach((id) => ids.add(id));
+  if (/טבע|חנויות טבע/.test(where)) HEALTH_IDS.forEach((id) => ids.add(id));
+  // fallback: if nothing matched, assume the big supermarkets
+  if (!ids.size) SUPERMARKET_IDS.forEach((id) => ids.add(id));
+  return stores.filter((s) => ids.has(s.id));
+}
+
+/* haversine distance in km between two [lat,lng] */
+export function distKm(a, b) {
+  if (!a || !b) return 0;
+  const R = 6371, toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b[0] - a[0]), dLng = toRad(b[1] - a[1]);
+  const la1 = toRad(a[0]), la2 = toRad(b[0]);
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
