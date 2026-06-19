@@ -4,6 +4,7 @@ import {
   uid, STORAGE_KEY, DEFAULT_STATE, fmt, storeOpen, wazeUrl, mapsUrl, DAY_NAMES,
 } from './data.js'
 import MapView from './MapView.jsx'
+import { Icon } from './icons.jsx'
 import './App.css'
 
 /* ---------- Google Fonts injection ---------- */
@@ -229,9 +230,9 @@ export default function App() {
       </main>
 
       <nav className="tabbar">
-        {[['map', 'מפה', '🗺️'], ['catalog', 'קטלוג', '🥛'], ['list', 'רשימה', '📝'], ['stores', 'חנויות', '🏪'], ['daily', 'היומיום', '⭐']].map(([k, label, ic]) => (
+        {[['map', 'מפה', 'map'], ['catalog', 'קטלוג', 'cup'], ['list', 'רשימה', 'list'], ['stores', 'חנויות', 'store'], ['daily', 'היומיום', 'star']].map(([k, label, ic]) => (
           <button key={k} className={`tabbtn${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>
-            <span className="tabic">{ic}</span>
+            <span className="tabic"><Icon name={ic} size={22} /></span>
             <span className="tablbl">{label}</span>
             {badge[k] > 0 && <span className="tabbadge">{badge[k]}</span>}
           </button>
@@ -261,14 +262,14 @@ function Header({ state, setState, onReset, onAddCat }) {
   return (
     <header className="header">
       <div className="hrow">
-        <div className="logo"><span className="logodrop">💧</span>מסעטעימות</div>
+        <div className="logo"><span className="logodrop"><Icon name="drop" size={22} fill /></span>מסע טעימות</div>
         <button className="resetbtn" title="איפוס" onClick={onReset}>⟳</button>
       </div>
       <div className="chiprow">
         {state.categories.map((c) => (
           <button key={c.id} className={`chip${state.activeCat === c.id ? ' active' : ''}`}
             onClick={() => setState((s) => ({ ...s, activeCat: c.id }))}>
-            <span>{c.emoji}</span> {c.name}
+            {c.name}
           </button>
         ))}
         <button className="chip chipadd" onClick={onAddCat}>+ תחום</button>
@@ -288,15 +289,15 @@ function ImageControls({ item, src, onFile, onBarcode, onUrl, onRemove, onTap })
         <div className="imgbox" onClick={onTap} role="button" title="הצג / הראה למוכר">
           <img className="prodimg" src={src} alt={item.name} loading="lazy" />
           {item.imageSource === 'off' && <span className="offattr">מקור: Open Food Facts</span>}
-          {item.bought && <span className="boughttag">✓ קניתי</span>}
+          {item.bought && <span className="boughttag">קניתי ✓</span>}
         </div>
       ) : (
-        <div className="imgempty"><span>💧</span><small>אין תמונה</small></div>
+        <div className="imgempty"><span><Icon name="drop" size={30} fill /></span><small>אין תמונה</small></div>
       )}
       <div className="imgbtns">
-        <button className="imbtn" onClick={() => fileRef.current?.click()}>📷 צלם / העלה</button>
-        <button className="imbtn" onClick={() => setBc((v) => !v)}>🔎 ברקוד</button>
-        <button className="imbtn" onClick={() => { const u = prompt('הדבק קישור לתמונה (https):'); if (u) onUrl(u) }}>🔗 קישור</button>
+        <button className="imbtn" onClick={() => fileRef.current?.click()}><Icon name="camera" size={16} /> צלם / העלה</button>
+        <button className="imbtn" onClick={() => setBc((v) => !v)}><Icon name="search" size={16} /> ברקוד</button>
+        <button className="imbtn" onClick={() => { const u = prompt('הדבק קישור לתמונה (https):'); if (u) onUrl(u) }}><Icon name="link" size={16} /> קישור</button>
         {src && <button className="imbtn imdel" onClick={onRemove}>הסר</button>}
       </div>
       {bc && (
@@ -319,7 +320,7 @@ function RateBox({ item, onSave, onCancel }) {
     <div className="ratebox">
       <div className="drops">
         {[1, 2, 3, 4, 5].map((n) => (
-          <button key={n} className={`drop${n <= score ? ' on' : ''}`} onClick={() => setScore(n)}>💧</button>
+          <button key={n} className={`drop${n <= score ? ' on' : ''}`} onClick={() => setScore(n)}><Icon name="drop" size={22} fill /></button>
         ))}
       </div>
       <div className="verdicts">
@@ -348,7 +349,7 @@ function Catalog({ items, stores, updateItem, deleteItem, imgSrc, setItemPhotoFr
   const SearchBar = (
     <div className="searchwrap">
       <div className="searchbar">
-        <span className="searchic">🔎</span>
+        <span className="searchic"><Icon name="search" size={16} /></span>
         <input className="searchinput" placeholder="חפש מוצר (למשל: שקדים, עיזים…)"
           value={q} onChange={(e) => setQ(e.target.value)} />
         {q && <button className="searchx" onClick={() => setQ('')}>×</button>}
@@ -365,7 +366,7 @@ function Catalog({ items, stores, updateItem, deleteItem, imgSrc, setItemPhotoFr
     </div>
   )
   if (!items.length)
-    return <div className="empty">אין עדיין מוצרים בתחום הזה.<br />הוסף את הראשון 👇
+    return <div className="empty">אין עדיין מוצרים בתחום הזה.<br />הוסף את הראשון
       <div style={{ marginTop: 16 }}><button className="bigadd" onClick={onAddItem}>+ הוסף מוצר משלך</button></div></div>
   return (
     <div className="catalog">
@@ -388,7 +389,7 @@ function Catalog({ items, stores, updateItem, deleteItem, imgSrc, setItemPhotoFr
                   onTap={() => openViewer(it.id)} />
                 <div className="cardname">{it.name}</div>
                 {it.desc && <div className="carddesc">{it.desc}</div>}
-                {it.where && <div className="cardwhere">📍 {it.where}</div>}
+                {it.where && <div className="cardwhere"><Icon name="pin" size={13} /> {it.where}</div>}
 
                 {it.status === 'todo' && (
                   <button className="actbtn" onClick={() => updateItem(it.id, { status: 'list' })}>+ לרשימת קניות</button>
@@ -396,12 +397,12 @@ function Catalog({ items, stores, updateItem, deleteItem, imgSrc, setItemPhotoFr
                 {it.status === 'list' && (
                   <div className="liststate">
                     <span className="listpill">● ברשימת הקניות</span>
-                    <button className="actbtn small" onClick={() => setRating(it.id)}>טעמתי →</button>
+                    <button className="actbtn small" onClick={() => setRating(it.id)}>טעמתי ←</button>
                   </div>
                 )}
                 {it.status === 'tasted' && rating !== it.id && (
                   <div className="tastedstate">
-                    <div className="drops sm">{[1, 2, 3, 4, 5].map((n) => <span key={n} className={`drop${n <= it.score ? ' on' : ''}`}>💧</span>)}</div>
+                    <div className="drops sm">{[1, 2, 3, 4, 5].map((n) => <span key={n} className={`drop${n <= it.score ? ' on' : ''}`}><Icon name="drop" size={17} fill /></span>)}</div>
                     {it.verdict && <span className={`vbadge ${VERDICT[it.verdict].cls}`}>{VERDICT[it.verdict].label}</span>}
                     <div className="rowbtns">
                       <button className="ghostbtn xs" onClick={() => setRating(it.id)}>ערוך דירוג</button>
@@ -442,12 +443,12 @@ function ShoppingList({ items, stores, imgSrc, updateItem, custom, setCustom }) 
         <section key={gname} className="storegrp">
           <div className="storegrph">
             <span>{gname}</span>
-            {g.store?.delivery && <a className="delivlink" href={g.store.deliveryUrl} target="_blank" rel="noreferrer">🚚 הזמן משלוח</a>}
+            {g.store?.delivery && <a className="delivlink" href={g.store.deliveryUrl} target="_blank" rel="noreferrer"><Icon name="truck" size={14} /> משלוח</a>}
           </div>
           {g.items.map((it) => (
             <label key={it.id} className="lrow">
               <input type="checkbox" onChange={() => updateItem(it.id, { status: 'tasted', bought: true })} />
-              {imgSrc(it) ? <img className="lthumb" src={imgSrc(it)} alt="" /> : <span className="lthumb empty">💧</span>}
+              {imgSrc(it) ? <img className="lthumb" src={imgSrc(it)} alt="" /> : <span className="lthumb empty"><Icon name="drop" size={18} fill /></span>}
               <span className="lname">{it.name}</span>
             </label>
           ))}
@@ -497,7 +498,7 @@ function StoreCard({ s, today, onDelete }) {
         {status === true && <span className="pill open">פתוח עכשיו</span>}
         {status === false && <span className="pill closed">סגור</span>}
       </div>
-      <div className="storeaddr">📍 {s.addr}</div>
+      <div className="storeaddr"><Icon name="pin" size={14} /> {s.addr}</div>
       {s.note && <div className="storenote">{s.note}</div>}
       {s.hours ? (
         <div className="hoursline">היום: {th ? `${fmt(th.o)}–${fmt(th.c)}` : 'סגור'}
@@ -515,7 +516,7 @@ function StoreCard({ s, today, onDelete }) {
       <div className="storebtns">
         <a className="navbtn waze" href={wazeUrl(s)} target="_blank" rel="noreferrer">Waze</a>
         <a className="navbtn maps" href={mapsUrl(s)} target="_blank" rel="noreferrer">Google Maps</a>
-        {s.delivery && <a className="navbtn deliv" href={s.deliveryUrl} target="_blank" rel="noreferrer">🚚 משלוח</a>}
+        {s.delivery && <a className="navbtn deliv" href={s.deliveryUrl} target="_blank" rel="noreferrer"><Icon name="truck" size={15} /> משלוח</a>}
       </div>
     </article>
   )
@@ -530,9 +531,9 @@ function Daily({ items, imgSrc }) {
       <h2 className="grph">המוצרים שנכנסו ליומיום</h2>
       {daily.map((it) => (
         <div key={it.id} className="drow">
-          {imgSrc(it) ? <img className="lthumb" src={imgSrc(it)} alt="" /> : <span className="lthumb empty">💧</span>}
+          {imgSrc(it) ? <img className="lthumb" src={imgSrc(it)} alt="" /> : <span className="lthumb empty"><Icon name="drop" size={18} fill /></span>}
           <span className="lname">{it.name}</span>
-          <span className="drops sm">{[1, 2, 3, 4, 5].map((n) => <span key={n} className={`drop${n <= it.score ? ' on' : ''}`}>💧</span>)}</span>
+          <span className="drops sm">{[1, 2, 3, 4, 5].map((n) => <span key={n} className={`drop${n <= it.score ? ' on' : ''}`}><Icon name="drop" size={17} fill /></span>)}</span>
         </div>
       ))}
     </div>
@@ -560,13 +561,13 @@ function Viewer({ items, idx, setIdx, imgSrc, updateItem }) {
       <div className="vcard" onTouchStart={onStart} onTouchEnd={onEnd}>
         <button className="vclose" onClick={() => setIdx(null)}>×</button>
         <div className="vimg">
-          {imgSrc(it) ? <img src={imgSrc(it)} alt={it.name} /> : <div className="imgempty big"><span>💧</span><small>אין תמונה</small></div>}
+          {imgSrc(it) ? <img src={imgSrc(it)} alt={it.name} /> : <div className="imgempty big"><span><Icon name="drop" size={44} fill /></span><small>אין תמונה</small></div>}
           {pop && <Sparkle />}
         </div>
         <div className="vname">{it.name}</div>
         {it.desc && <div className="vdesc">{it.desc}</div>}
-        {it.status === 'tasted' && <div className="drops sm center">{[1, 2, 3, 4, 5].map((n) => <span key={n} className={`drop${n <= it.score ? ' on' : ''}`}>💧</span>)}</div>}
-        <button className={`buybtn${it.bought ? ' done' : ''}${pop ? ' pop' : ''}`} onClick={buy}>{it.bought ? 'קניתי ✓' : '✓ קניתי'}</button>
+        {it.status === 'tasted' && <div className="drops sm center">{[1, 2, 3, 4, 5].map((n) => <span key={n} className={`drop${n <= it.score ? ' on' : ''}`}><Icon name="drop" size={17} fill /></span>)}</div>}
+        <button className={`buybtn${it.bought ? ' done' : ''}${pop ? ' pop' : ''}`} onClick={buy}>{it.bought ? 'קניתי ✓' : 'קניתי'}</button>
         <div className="vnav">
           <button onClick={() => go(-1)} disabled={idx === 0}>‹ הקודם</button>
           <span className="vcount">{idx + 1}/{items.length}</span>
@@ -578,7 +579,7 @@ function Viewer({ items, idx, setIdx, imgSrc, updateItem }) {
 }
 function Sparkle() {
   return <div className="sparkle">{Array.from({ length: 10 }).map((_, i) => (
-    <span key={i} style={{ '--a': `${i * 36}deg` }}>✨</span>))}</div>
+    <span key={i} style={{ '--a': `${i * 36}deg` }} />))}</div>
 }
 
 /* ===================== Store interior (enter a store) ===================== */
@@ -590,7 +591,7 @@ function StoreInside({ store, items, imgSrc, updateItem, onClose }) {
     <div className="inside">
       <div className="insidehead">
         <button className="vclose static" onClick={onClose}>×</button>
-        <div className="insidetitle">🚪 {store.name}</div>
+        <div className="insidetitle"><Icon name="door" size={22} /> {store.name}</div>
         <div className="insidesub">{linked.length ? 'מוצרים שמשויכים לחנות זו' : 'כל המוצרים בתחום'}</div>
       </div>
       <div className="insidegrid">
@@ -598,7 +599,7 @@ function StoreInside({ store, items, imgSrc, updateItem, onClose }) {
           <div key={it.id} className={`gcell${it.bought ? ' bought' : ''}`}
             onClick={() => updateItem(it.id, { bought: !it.bought })}>
             <div className="gimg">
-              {imgSrc(it) ? <img src={imgSrc(it)} alt={it.name} loading="lazy" /> : <span className="gph">💧</span>}
+              {imgSrc(it) ? <img src={imgSrc(it)} alt={it.name} loading="lazy" /> : <span className="gph"><Icon name="drop" size={34} fill /></span>}
               {it.bought && <span className="gtick">✓</span>}
             </div>
             <div className="gname">{it.name}</div>
@@ -649,7 +650,7 @@ function NavView({ route, onClose }) {
       <div className="navhud">
         <div className="navhud-top">
           <span>תחנה {step + 1}/{route.order.length}</span>
-          <span>🛣️ {route.km.toFixed(1)} ק״מ · ⏱️ ~{Math.round(route.min)} דק׳</span>
+          <span>{route.km.toFixed(1)} ק״מ · ~{Math.round(route.min)} דק׳</span>
         </div>
         <div className="navhud-stop">
           <div className="navhud-num">{step + 1}</div>
@@ -662,7 +663,7 @@ function NavView({ route, onClose }) {
           <button className="ghostbtn" disabled={step === 0} onClick={() => focusStop(step - 1)}>‹ הקודמת</button>
           {step < route.order.length - 1
             ? <button className="gobtn sm" onClick={() => focusStop(step + 1)}>הגעתי — הבאה ›</button>
-            : <button className="gobtn sm done" onClick={onClose}>✓ סיימתי הכל</button>}
+            : <button className="gobtn sm done" onClick={onClose}>סיימתי הכל ✓</button>}
         </div>
       </div>
     </div>

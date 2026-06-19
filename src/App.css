@@ -115,16 +115,15 @@ h1, h2, h3, .logo, .cardname { font-family: 'Secular One', system-ui, sans-serif
 .ghostbtn { background: transparent; border: 1px solid var(--hair); color: var(--muted); border-radius: 10px; padding: 8px 12px; font-family: inherit; font-size: 13px; cursor: pointer; }
 .ghostbtn.xs { padding: 5px 9px; font-size: 12px; }
 
-/* ---------- drops ---------- */
-.drops { display: flex; gap: 4px; }
-.drops.sm { gap: 1px; }
+/* ---------- drops (rating, SVG) ---------- */
+.drops { display: flex; gap: 4px; align-items: center; }
+.drops.sm { gap: 2px; }
 .drops.center { justify-content: center; margin: 6px 0; }
-.drop { background: none; border: none; font-size: 24px; cursor: pointer; filter: grayscale(1) opacity(.3); transition: transform .15s var(--spring), filter .15s; padding: 0; }
-.drops.sm .drop, .drops.sm span.drop { font-size: 17px; }
-.drop.on { filter: none; }
+.drop { background: none; border: none; cursor: pointer; color: var(--faint); opacity: .45; transition: transform .15s var(--spring), color .15s, opacity .15s; padding: 0; display: inline-grid; place-items: center; line-height: 0; }
+.drop.on { color: var(--accent); opacity: 1; filter: drop-shadow(0 0 5px var(--accent-glow)); }
 button.drop:active { transform: scale(1.3); }
-span.drop { filter: grayscale(1) opacity(.3); font-size: 17px; }
-span.drop.on { filter: none; }
+span.drop { color: var(--faint); opacity: .45; line-height: 0; display: inline-grid; }
+span.drop.on { color: var(--accent); opacity: 1; filter: drop-shadow(0 0 5px var(--accent-glow)); }
 
 /* ---------- rate box ---------- */
 .ratebox { margin-top: 10px; padding: 12px; background: var(--surface-2); border: 1px solid var(--hair); border-radius: 12px; animation: cardin .25s var(--spring) both; }
@@ -270,7 +269,8 @@ span.drop.on { filter: none; }
   background: radial-gradient(circle at 35% 30%, #ffffff, #f3fbf8 60%, #e3f3ee);
   border: 3px solid var(--mc); display: grid; place-items: center; font-size: 22px;
   box-shadow: 0 0 0 4px rgba(255,255,255,.35), 0 0 16px var(--mc), 0 5px 12px rgba(0,0,0,.3);
-  position: relative; z-index: 2; }
+  position: relative; z-index: 2; color: #15314a; }
+.mk2-disc svg { width: 24px; height: 24px; }
 .mk2-ring { position: absolute; left: 50%; top: 23px; transform: translate(-50%,-50%); width: 56px; height: 56px; border-radius: 50%; border: 2.5px dashed var(--mc); opacity: .85; animation: spin 7s linear infinite; }
 @keyframes bob2 { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-6px); } }
 @keyframes spin { to { transform: translate(-50%,-50%) rotate(360deg); } }
@@ -286,8 +286,9 @@ span.drop.on { filter: none; }
 @keyframes reach { 0%,100% { transform: translate(-50%,-50%) scale(.92); opacity: .8; } 50% { transform: translate(-50%,-50%) scale(1.08); opacity: 1; } }
 .avatar-disc { position: absolute; left: 50%; top: 72px; transform: translate(-50%,-50%); width: 56px; height: 22px; border-radius: 50%;
   background: radial-gradient(circle at 50% 35%, #3a8589, #245658); box-shadow: 0 4px 10px rgba(0,0,0,.35); }
-.avatar-char { position: absolute; left: 50%; top: 30px; transform: translate(-50%,-50%); font-size: 40px;
-  filter: drop-shadow(0 4px 6px rgba(0,0,0,.35)); animation: hover2 2.8s ease-in-out infinite; }
+.avatar-char { position: absolute; left: 50%; top: 30px; transform: translate(-50%,-50%); color: #2ee6e0;
+  filter: drop-shadow(0 0 8px rgba(46,230,224,.7)) drop-shadow(0 4px 6px rgba(0,0,0,.35)); animation: hover2 2.8s ease-in-out infinite; line-height: 0; }
+.avatar-char svg { width: 40px; height: 40px; }
 @keyframes hover2 { 0%,100% { transform: translate(-50%,-50%) translateY(0); } 50% { transform: translate(-50%,-50%) translateY(-5px); } }
 .avatar-found .avatar-reach { border-color: rgba(52,211,154,.6); background: radial-gradient(ellipse at center, rgba(52,211,154,.3), rgba(52,211,154,.06) 60%, transparent 72%); }
 

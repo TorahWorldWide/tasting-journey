@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { storeOpen, fmt, mapsUrl, DAY_NAMES, storesForItem, distKm } from './data.js'
+import { SVG_STORE, SVG_DROP } from './icons.jsx'
+import { Icon } from './icons.jsx'
 
 /* Harish center (used as the trip start when GPS is unavailable) */
 const CENTER = [32.4663, 35.0435]
@@ -21,7 +23,7 @@ function storeIcon(s, active, inRoute, order) {
       <div class="mk2-shadow"></div>
       <div class="mk2-body" style="--mc:${c}">
         <div class="mk2-ring"></div>
-        <div class="mk2-disc">🏪</div>
+        <div class="mk2-disc">${SVG_STORE}</div>
         ${badge}
       </div>
     </div>`
@@ -203,18 +205,18 @@ export default function MapView({ stores, items, listItems, imgSrc, onEnterStore
       <div className={`avatar${located ? ' avatar-found' : ''}`}>
         <div className="avatar-reach" />
         <div className="avatar-disc" />
-        <div className="avatar-char">💧</div>
+        <div className="avatar-char" dangerouslySetInnerHTML={{ __html: SVG_DROP }} />
       </div>
 
-      <div className="mapbrand"><span>💧</span> מסע טעימות</div>
-      <button className="locbtn" onClick={locate} title="המיקום שלי">📍</button>
+      <div className="mapbrand"><Icon name="drop" size={15} fill /> מסע טעימות</div>
+      <button className="locbtn" onClick={locate} title="המיקום שלי"><Icon name="pin" size={22} /></button>
 
       {/* route planner bar */}
       {listItems.length > 0 && !route && (
         <div className="routebar">
           <div className="routebar-txt">{listItems.length} מוצרים ברשימה</div>
           <button className="planbtn" disabled={planning} onClick={async () => { await locate(); planRoute() }}>
-            {planning ? 'מחשב…' : '🧭 חשב מסלול'}
+            {planning ? 'מחשב…' : <><Icon name="compass" size={16} /> חשב מסלול</>}
           </button>
         </div>
       )}
@@ -223,9 +225,9 @@ export default function MapView({ stores, items, listItems, imgSrc, onEnterStore
         <div className="routecard">
           <button className="routeclose" onClick={clearRoute}>×</button>
           <div className="routestats">
-            <span>🛣️ {route.km.toFixed(1)} ק״מ</span>
-            <span>⏱️ ~{Math.round(route.min)} דק׳</span>
-            <span>🏪 {route.order.length} חנויות</span>
+            <span>{route.km.toFixed(1)} ק״מ</span>
+            <span>~{Math.round(route.min)} דק׳</span>
+            <span>{route.order.length} חנויות</span>
           </div>
           <div className="routestops">
             {route.order.map((s, i) => (
@@ -266,7 +268,7 @@ function StoreSheet({ s, items, imgSrc, onClose, onEnter }) {
           {status === true && <span className="pill open">פתוח עכשיו</span>}
           {status === false && <span className="pill closed">סגור</span>}
         </div>
-        <div className="storeaddr">📍 {s.addr}</div>
+        <div className="storeaddr"><Icon name="pin" size={14} /> {s.addr}</div>
         {s.note && <div className="storenote">{s.note}</div>}
         {s.hours ? (
           <div className="hoursline">היום: {th ? `${fmt(th.o)}–${fmt(th.c)}` : 'סגור'}
@@ -283,12 +285,12 @@ function StoreSheet({ s, items, imgSrc, onClose, onEnter }) {
           </ul>
         )}
         <button className="enterbtn" onClick={onEnter}>
-          🚪 כניסה לחנות {linked.length ? `(${linked.length} מוצרים)` : ''}
+          <Icon name="door" size={18} /> כניסה לחנות {linked.length ? `(${linked.length} מוצרים)` : ''}
         </button>
         <div className="sheetbtns">
-          <a className="navbtn maps" href={mapsUrl(s)} target="_blank" rel="noreferrer">🗺️ מפה</a>
-          {s.inventoryUrl && <a className="navbtn inv" href={s.inventoryUrl} target="_blank" rel="noreferrer">📦 מלאי אונליין</a>}
-          {s.delivery && <a className="navbtn deliv" href={s.deliveryUrl} target="_blank" rel="noreferrer">🚚 משלוח</a>}
+          <a className="navbtn maps" href={mapsUrl(s)} target="_blank" rel="noreferrer"><Icon name="map" size={15} /> מפה</a>
+          {s.inventoryUrl && <a className="navbtn inv" href={s.inventoryUrl} target="_blank" rel="noreferrer"><Icon name="box" size={15} /> מלאי אונליין</a>}
+          {s.delivery && <a className="navbtn deliv" href={s.deliveryUrl} target="_blank" rel="noreferrer"><Icon name="truck" size={15} /> משלוח</a>}
         </div>
       </div>
     </div>
